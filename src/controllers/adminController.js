@@ -173,18 +173,39 @@ const getPendingRiders = async (req, res) => {
 
 const approveRider = async (req, res) => {
   try {
-
     const { verificationId } = req.params;
 
-    await pool.query(
+    const result = await pool.query(
       `
       UPDATE rider_verifications
       SET
-      verification_status = 'approved',
-      verified_at = CURRENT_TIMESTAMP
+        verification_status = 'approved',
+        verified_at = CURRENT_TIMESTAMP
       WHERE id = $1
+      RETURNING user_id
       `,
       [verificationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Rider verification not found"
+      });
+    }
+
+    const userId = result.rows[0].user_id;
+
+    await pool.query(
+      `
+      UPDATE users
+      SET
+        is_rider = TRUE,
+        is_rider_profile_completed = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [userId]
     );
 
     res.json({
@@ -193,29 +214,50 @@ const approveRider = async (req, res) => {
     });
 
   } catch (error) {
+    console.error(error);
 
     res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 };
 
 const rejectRider = async (req, res) => {
   try {
-
     const { verificationId } = req.params;
 
-    await pool.query(
+    const result = await pool.query(
       `
       UPDATE rider_verifications
       SET
-      verification_status = 'rejected',
-      verified_at = CURRENT_TIMESTAMP
+        verification_status = 'rejected',
+        verified_at = CURRENT_TIMESTAMP
       WHERE id = $1
+      RETURNING user_id
       `,
       [verificationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Rider verification not found"
+      });
+    }
+
+    const userId = result.rows[0].user_id;
+
+    await pool.query(
+      `
+      UPDATE users
+      SET
+        is_rider = FALSE,
+        is_rider_profile_completed = FALSE,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [userId]
     );
 
     res.json({
@@ -224,12 +266,12 @@ const rejectRider = async (req, res) => {
     });
 
   } catch (error) {
+    console.error(error);
 
     res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 };
 
